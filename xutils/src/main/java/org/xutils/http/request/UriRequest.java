@@ -11,6 +11,7 @@ import org.xutils.x;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Map;
 
@@ -27,7 +28,7 @@ public abstract class UriRequest implements Closeable {
     protected ClassLoader callingClassLoader = null;
     protected ProgressHandler progressHandler = null;
 
-    /*package*/ UriRequest(RequestParams params, Class<?> loadType) throws Throwable {
+    /*package*/ UriRequest(RequestParams params, Type loadType) throws Throwable {
         this.params = params;
         this.queryUrl = buildQueryUrl(params);
         this.loader = LoaderFactory.getLoader(loadType, params);
@@ -111,6 +112,8 @@ public abstract class UriRequest implements Closeable {
     public abstract long getContentLength();
 
     public abstract int getResponseCode() throws IOException;
+
+    public abstract String getResponseMessage() throws IOException;
 
     public abstract long getExpiration();
 

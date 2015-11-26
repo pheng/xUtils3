@@ -1,6 +1,8 @@
 package org.xutils.http.request;
 
+import android.annotation.TargetApi;
 import android.net.Uri;
+import android.os.Build;
 import android.text.TextUtils;
 
 import org.xutils.cache.DiskCacheEntity;
@@ -16,6 +18,7 @@ import org.xutils.http.cookie.DbCookieStore;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Type;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
 import java.net.HttpURLConnection;
@@ -28,9 +31,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.StringTokenizer;
 import java.util.TimeZone;
 
 import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSocketFactory;
 
 /**
  * Created by wyouflf on 15/7/23.
@@ -47,7 +52,7 @@ public class HttpRequest extends UriRequest {
     private static final CookieManager COOKIE_MANAGER =
             new CookieManager(DbCookieStore.INSTANCE, CookiePolicy.ACCEPT_ALL);
 
-    /*package*/ HttpRequest(RequestParams params, Class<?> loadType) throws Throwable {
+    /*package*/ HttpRequest(RequestParams params, Type loadType) throws Throwable {
         super(params, loadType);
     }
 
@@ -99,6 +104,7 @@ public class HttpRequest extends UriRequest {
      * @throws IOException
      */
     @Override
+    @TargetApi(Build.VERSION_CODES.KITKAT)
     public void sendRequest() throws IOException {
         isLoading = false;
 
@@ -110,11 +116,14 @@ public class HttpRequest extends UriRequest {
             } else {
                 connection = (HttpURLConnection) url.openConnection();
             }
-            connection.setInstanceFollowRedirects(true);
             connection.setReadTimeout(params.getConnectTimeout());
             connection.setConnectTimeout(params.getConnectTimeout());
+            connection.setInstanceFollowRedirects(params.getRedirectHandler() == null);
             if (connection instanceof HttpsURLConnection) {
-                ((HttpsURLConnection) connection).setSSLSocketFactory(params.getSslSocketFactory());
+                SSLSocketFactory sslSocketFactory = params.getSslSocketFactory();
+                if (sslSocketFactory != null) {
+                    ((HttpsURLConnection) connection).setSSLSocketFactory(sslSocketFactory);
+                }
             }
         }
 
@@ -157,17 +166,34 @@ public class HttpRequest extends UriRequest {
                     if (!TextUtils.isEmpty(contentType)) {
                         connection.setRequestProperty("Content-Type", contentType);
                     }
-                    connection.setRequestProperty("Content-Length", String.valueOf(body.getContentLength()));
+                    long contentLength = body.getContentLength();
+                    if (contentLength < 0) {
+                        connection.setChunkedStreamingMode(256 * 1024);
+                    } else {
+                        if (contentLength < Integer.MAX_VALUE) {
+                            connection.setFixedLengthStreamingMode((int) contentLength);
+                        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                            connection.setFixedLengthStreamingMode(contentLength);
+                        } else {
+                            connection.setChunkedStreamingMode(256 * 1024);
+                        }
+                    }
+                    connection.setRequestProperty("Content-Length", String.valueOf(contentLength));
                     connection.setDoOutput(true);
                     body.writeTo(connection.getOutputStream());
                 }
             }
         }
 
-        LogUtil.d(queryUrl);
+        // check response code
         int code = connection.getResponseCode();
         if (code >= 300) {
-            throw new HttpException(code, connection.getResponseMessage());
+            HttpException httpException = new HttpException(code, this.getResponseMessage());
+            try {
+                httpException.setResult(IOUtil.readStr(connection.getInputStream(), params.getCharset()));
+            } catch (Throwable ignored) {
+            }
+            throw httpException;
         }
 
         { // save cookies
@@ -254,11 +280,9 @@ public class HttpRequest extends UriRequest {
     public void close() throws IOException {
         if (inputStream != null) {
             IOUtil.closeQuietly(inputStream);
-            inputStream = null;
         }
         if (connection != null) {
             connection.disconnect();
-            connection = null;
         }
     }
 
@@ -300,13 +324,53 @@ public class HttpRequest extends UriRequest {
     }
 
     @Override
-    public long getExpiration() {
-        if (connection == null) return -1;
-        long result = connection.getExpiration();
-        if (result <= 0) {
-            result = Long.MAX_VALUE;
+    public String getResponseMessage() throws IOException {
+        if (connection != null) {
+            return Uri.decode(connection.getResponseMessage());
+        } else {
+            return null;
         }
-        return result;
+    }
+
+    @Override
+    public long getExpiration() {
+        if (connection == null) return -1L;
+
+        long expiration = -1L;
+
+        // from max-age
+        String cacheControl = connection.getHeaderField("Cache-Control");
+        if (!TextUtils.isEmpty(cacheControl)) {
+            StringTokenizer tok = new StringTokenizer(cacheControl, ",");
+            while (tok.hasMoreTokens()) {
+                String token = tok.nextToken().trim().toLowerCase();
+                if (token.startsWith("max-age")) {
+                    int eqIdx = token.indexOf('=');
+                    if (eqIdx > 0) {
+                        try {
+                            String value = token.substring(eqIdx + 1).trim();
+                            long seconds = Long.parseLong(value);
+                            if (seconds > 0L) {
+                                expiration = System.currentTimeMillis() + seconds * 1000L;
+                            }
+                        } catch (Throwable ex) {
+                            LogUtil.e(ex.getMessage(), ex);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        // from expires
+        if (expiration <= 0L) {
+            expiration = connection.getExpiration();
+        }
+
+        if (expiration <= 0) {
+            expiration = Long.MAX_VALUE;
+        }
+        return expiration;
     }
 
     @Override

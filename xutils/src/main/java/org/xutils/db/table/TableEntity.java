@@ -33,7 +33,7 @@ public final class TableEntity<T> {
 
     private final DbManager db;
     private final String tableName;
-    private final String runOnTableCreated;
+    private final String onCreated;
     private ColumnEntity id;
     private Class<T> entityType;
     private Constructor<T> constructor;
@@ -55,12 +55,13 @@ public final class TableEntity<T> {
         this.constructor.setAccessible(true);
         Table table = entityType.getAnnotation(Table.class);
         this.tableName = table.name();
-        this.runOnTableCreated = table.runOnTableCreated();
+        this.onCreated = table.onCreated();
         this.columnMap = TableUtils.findColumnMap(entityType);
 
         for (ColumnEntity column : columnMap.values()) {
             if (column.isId()) {
                 this.id = column;
+                break;
             }
         }
     }
@@ -145,8 +146,8 @@ public final class TableEntity<T> {
         return entityType;
     }
 
-    public String getRunOnTableCreated() {
-        return runOnTableCreated;
+    public String getOnCreated() {
+        return onCreated;
     }
 
     public ColumnEntity getId() {

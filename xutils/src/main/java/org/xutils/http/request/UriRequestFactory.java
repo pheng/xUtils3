@@ -3,6 +3,7 @@ package org.xutils.http.request;
 import org.xutils.http.RequestParams;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Type;
 
 /**
  * Created by wyouflf on 15/11/4.
@@ -15,7 +16,7 @@ public final class UriRequestFactory {
     private UriRequestFactory() {
     }
 
-    public static UriRequest getUriRequest(RequestParams params, Class<?> loadType) throws Throwable {
+    public static UriRequest getUriRequest(RequestParams params, Type loadType) throws Throwable {
         String uri = params.getUri();
         if (uri.startsWith("http")) {
             return new HttpRequest(params, loadType);
@@ -27,7 +28,7 @@ public final class UriRequestFactory {
             } else {
                 return new AssetsRequest(params, loadType);
             }
-        } else if (uri.startsWith("file://")) {
+        } else if (uri.startsWith("file:") || uri.startsWith("/")) {
             return new LocalFileRequest(params, loadType);
         } else {
             throw new IllegalArgumentException("The url not be support: " + uri);

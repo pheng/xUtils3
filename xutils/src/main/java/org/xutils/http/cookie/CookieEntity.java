@@ -1,5 +1,7 @@
 package org.xutils.http.cookie;
 
+import android.text.TextUtils;
+
 import org.xutils.db.annotation.Column;
 import org.xutils.db.annotation.Table;
 
@@ -11,7 +13,7 @@ import java.net.URI;
  * 数据库中的cookie实体
  */
 @Table(name = "cookie",
-        runOnTableCreated = "CREATE UNIQUE INDEX index_cookie_unique ON cookie(\"name\",\"domain\",\"path\")")
+        onCreated = "CREATE UNIQUE INDEX index_cookie_unique ON cookie(\"name\",\"domain\",\"path\")")
 /*package*/ final class CookieEntity {
 
     // ~ 100 year
@@ -60,11 +62,14 @@ import java.net.URI;
         long maxAge = cookie.getMaxAge();
         if (maxAge != -1L) {
             this.expiry = (maxAge * 1000L) + System.currentTimeMillis();
-            if (maxAge < 0 && this.expiry < 0) {
+            if (this.expiry < 0L) {
                 this.expiry = MAX_EXPIRY;
             }
         }
         this.path = cookie.getPath();
+        if (!TextUtils.isEmpty(path) && path.length() > 1 && path.endsWith("/")) {
+            this.path = path.substring(0, path.length() - 1);
+        }
         this.portList = cookie.getPortlist();
         this.secure = cookie.getSecure();
         this.version = cookie.getVersion();

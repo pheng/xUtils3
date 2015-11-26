@@ -14,11 +14,11 @@ import android.widget.ProgressBar;
 
 import org.xutils.common.Callback;
 import org.xutils.common.util.DensityUtil;
+import org.xutils.http.RequestParams;
+import org.xutils.image.ImageOptions;
 import org.xutils.view.annotation.ContentView;
 import org.xutils.view.annotation.Event;
 import org.xutils.view.annotation.ViewInject;
-import org.xutils.http.RequestParams;
-import org.xutils.image.ImageOptions;
 import org.xutils.x;
 
 import java.util.ArrayList;
@@ -55,6 +55,7 @@ public class ImageFragment extends BaseFragment {
                         // 加载中或错误图片的ScaleType
                         //.setPlaceholderScaleType(ImageView.ScaleType.MATRIX)
                 .setImageScaleType(ImageView.ScaleType.CENTER_CROP)
+                .setLoadingDrawableId(R.mipmap.ic_launcher)
                 .build();
 
         imageListAdapter = new ImageListAdapter();

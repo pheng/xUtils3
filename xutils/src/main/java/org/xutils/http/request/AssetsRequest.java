@@ -11,6 +11,7 @@ import org.xutils.x;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Type;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +25,7 @@ public class AssetsRequest extends UriRequest {
     private long contentLength = 0;
     private InputStream inputStream;
 
-    public AssetsRequest(RequestParams params, Class<?> loadType) throws Throwable {
+    public AssetsRequest(RequestParams params, Type loadType) throws Throwable {
         super(params, loadType);
     }
 
@@ -75,7 +76,7 @@ public class AssetsRequest extends UriRequest {
     public InputStream getInputStream() throws IOException {
         if (inputStream == null) {
             if (callingClassLoader != null) {
-                String assetsPath = "assets/" + queryUrl.substring(9);
+                String assetsPath = "assets/" + queryUrl.substring("assets://".length());
                 inputStream = callingClassLoader.getResourceAsStream(assetsPath);
                 contentLength = inputStream.available();
             }
@@ -86,7 +87,6 @@ public class AssetsRequest extends UriRequest {
     @Override
     public void close() throws IOException {
         IOUtil.closeQuietly(inputStream);
-        inputStream = null;
     }
 
     @Override
@@ -103,6 +103,11 @@ public class AssetsRequest extends UriRequest {
     @Override
     public int getResponseCode() throws IOException {
         return getInputStream() != null ? 200 : 404;
+    }
+
+    @Override
+    public String getResponseMessage() throws IOException {
+        return null;
     }
 
     @Override
